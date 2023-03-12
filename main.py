@@ -1,18 +1,9 @@
-# import selenium.webdriver as webdriver
+from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-# from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
-# from datetime import datetime, timedelta
 from selenium.common.exceptions import NoSuchElementException, ElementNotInteractableException
-# import selenium
-# import json
 import time
-from selenium import webdriver
-
-
-# import dotenv
-# import os
 
 
 class Module_SiSu:
@@ -22,13 +13,13 @@ class Module_SiSu:
         chrome_options = Options()
         chrome_options.add_experimental_option("detach", True)
         chrome_options.add_argument("--window-size=1920,1080")
-        # TODO: Mudar link
-        self.url = "http://web.archive.org/web/20221127215609/https://sisu.mec.gov.br/#/selecionados"
+        self.url = "https://sisu.mec.gov.br/#/selecionados"
 
     @staticmethod
     def init_driver():
         """Inicia e retorna o Webdriver"""
-        return webdriver.Chrome()
+        return webdriver.Edge()
+        # return webdriver.Chrome()
 
     def define_driver(self, driver):
         self.driver = driver
@@ -76,13 +67,13 @@ class Module_SiSu:
         button = self.driver.find_element(By.CLASS_NAME, "btn-botao")
         self.scroll_and_click(button)
 
-    # TODO Inserir o caminho para download. XPATH ou CLASS_NAME
     def do_download(self):
         """
         Click na opção de download
         """
-        # button = driver.find_element(By.XPATH, "???")
-        button = self.driver.find_element(By.CLASS_NAME, "")
+        # button = driver.find_element(By.XPATH,
+        #                              "/html/body/sisu-root/div/section/sisu-selecionados/div/section/div/div/div[3]/div[1]/div[4]/a")
+        button = self.driver.find_element(By.CLASS_NAME, "baixar-arquivo")
         self.scroll_and_click(button)
 
     def scroll_into_view(self, element):
@@ -101,11 +92,15 @@ class Module_SiSu:
         y = location['y'] + size['height'] / 2 - viewport_height / 2
 
         self.driver.execute_script(f"window.scrollTo({x}, {y});")
-        # ActionChains(driver).move_to_element(object).perform()
 
     def scroll_and_click(self, element):
-        self.scroll_into_view(element)
-        element.click()
+        try:
+            self.wait_loading()
+            self.scroll_into_view(element)
+            element.click()
+        except ElementNotInteractableException:
+            self.scroll_and_click(element)
+            return
 
     def wait_loading(self):
         """
@@ -137,7 +132,20 @@ class Module_SiSu:
             box.send_keys(Keys.ARROW_DOWN)
             box.send_keys(Keys.ENTER)
 
-    def main(self, driver, url=None):
+    def extract_texts(self, list_items):
+        r_list = []
+        for item in list_items:
+            r_list.append(item.text)
+        return r_list
+
+    def main(self, driver, url=None, downloads_all=False):
+        '''
+
+        :param driver: Driver
+        :param url: URL do SiSu
+        :param downloads_all: O sistema tem um "bug" que
+        :return:
+        '''
         self.define_driver(driver)
         self.define_url(url)
 
@@ -149,16 +157,12 @@ class Module_SiSu:
 
         # Click em cada instituição
         first_instituicao = True
+        print(len(options_instituicao))
         for instituicao in options_instituicao:
             self.scroll_and_click(boxes[0])
-            # O texto precisa ser extraído antes, porque quando esse elemento sumir da tela, não será possível.
-            text_instituicao = instituicao.text
-            print(f"Procurando: {text_instituicao}")
-
             self.moveto_next_option(boxes[0], first_instituicao)
-            # self.scroll_and_click(instituicao)
-
             self.scroll_and_click(boxes[1])
+
             options_local = self.find_options(boxes[1])
 
             first_instituicao = False
@@ -166,57 +170,48 @@ class Module_SiSu:
             # Click em cada local
             for local in options_local:
                 self.scroll_and_click(boxes[1])
-                text_local = local.text
-                print(f"Procurando: {text_instituicao} - {text_local}")
-
                 self.moveto_next_option(boxes[1], first_local)
-                # self.scroll_and_click(local)
-
                 self.scroll_and_click(boxes[2])
+
                 options_curso = self.find_options(boxes[2])
+
+                if downloads_all and not first_local:  # Se funciona do antigo jeito que, só cada univ. baixa todos os dados, pula os loops de baixar varias vezes a
+                    break
 
                 first_local = False
                 first_curso = True
-                # Click em cada curso - Caso não seja necessario preencher todos os campos, o código daqui pra frente
-                # pode ser comentado. e o search e download descomentado
-                # self.do_search(driver)
-                # print("Realizando Download")
-                # self.wait_loading()
-                # self.do_download(driver)
+                # Click em cada curso
                 for curso in options_curso:
                     self.scroll_and_click(boxes[2])
-                    text_curso = curso.text
-                    print(f"Procurando: {text_instituicao} - {text_local} - {text_curso}")
-
                     self.moveto_next_option(boxes[2], first_curso)
-                    # self.scroll_and_click(curso)
-
                     self.scroll_and_click(boxes[3])
+
                     options_grau_turno = self.find_options(boxes[3])
+
+                    if downloads_all and not first_curso:  # Se funciona do antigo jeito que, só cada univ. baixa todos os dados, pula os loops de baixar varias vezes a
+                        break
 
                     first_curso = False
                     first_grau_turno = True
                     for grau_turno in options_grau_turno:
                         self.scroll_and_click(boxes[3])
-                        text_grau_turno = grau_turno.text
-                        print(f"Procurando: {text_instituicao} - {text_local} - {text_curso} - {text_grau_turno}")
-
                         self.moveto_next_option(boxes[3], first_grau_turno)
-                        # self.scroll_and_click(grauTurno)
 
                         self.do_search()
-                        print("Realizando Download")
                         self.wait_loading()
-                        # self.do_download()
+                        self.do_download()
+
+                        if downloads_all and not first_grau_turno:  # Se funciona do antigo jeito que, só cada univ. baixa todos os dados, pula os loops de baixar varias vezes a
+                            break
 
                         first_grau_turno = False
 
 
 if __name__ == "__main__":
-    url = "http://web.archive.org/web/20221127215609/https://sisu.mec.gov.br/#/selecionados"
+    url = "https://sisu.mec.gov.br/#/selecionados"
     test = Module_SiSu()
 
     driver = test.init_driver()
-    test.main(driver)
+    test.main(driver, downloads_all=True)
     time.sleep(15)
     test.close_driver(driver)
